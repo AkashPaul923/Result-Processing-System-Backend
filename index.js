@@ -180,6 +180,36 @@ async function run() {
             }
         });
 
+        // Get student data (GET)
+        app.get("/api/student", async (req, res) => {
+            try {
+                const { regNo } = req.query;
+
+                if (!regNo) {
+                    return res
+                        .status(400)
+                        .json({ message: "regNo is required" });
+                }
+
+                const student = await studentCollection.findOne({
+                    regNo: regNo,
+                });
+
+                if (!student) {
+                    return res.status(404).json({
+                        message:
+                            "No student found",
+                    });
+                }
+
+                res.status(200).json({
+                    student,
+                });
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+
         // Add Result (POST)
         app.post("/api/student/result", async (req, res) => {
             try {
