@@ -110,6 +110,7 @@ async function run() {
         const studentCollection = client.db("ISTDB").collection("students");
         const courseCollection = client.db("ISTDB").collection("courses");
         const resultCollection = client.db("ISTDB").collection("results");
+        const teacherCollection = client.db("ISTDB").collection("teachers");
 
         // Create Student API
         app.post("/api/student/register", async (req, res) => {
@@ -197,8 +198,7 @@ async function run() {
 
                 if (!student) {
                     return res.status(404).json({
-                        message:
-                            "No student found",
+                        message: "No student found",
                     });
                 }
 
@@ -300,6 +300,16 @@ async function run() {
                     });
                 }
 
+                const hasCourse = await courseCollection.findOne({
+                    dept: dept,
+                    semester: semester,
+                });
+                if (hasCourse) {
+                    return res.status(400).json({
+                        message: `${dept} Department ${semester} semester course exist`,
+                    });
+                }
+
                 const newCourse = {
                     semester,
                     dept,
@@ -343,6 +353,75 @@ async function run() {
 
                 res.status(200).json({
                     subjects: course.subjects,
+                });
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+
+        app.post("/api/teacher/add", async (req, res) => {
+            try {
+                const { name, email, phone, dept, designation } = req.body;
+
+                // Validation
+                if (!name || !email || !phone || !dept || !designation) {
+                    return res
+                        .status(400)
+                        .json({ message: "All fields are required" });
+                }
+
+                // Email & Phone Format Check
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                const phoneRegex = /^01[0-9]{9}$/;
+
+                if (!emailRegex.test(email)) {
+                    return res
+                        .status(400)
+                        .json({ message: "Invalid email format" });
+                }
+
+                if (!phoneRegex.test(phone)) {
+                    return res.status(400).json({
+                        message: "Invalid Bangladeshi phone number format",
+                    });
+                }
+
+                // Check for Duplicate Teacher (by email or phone)
+                const existingTeacher = await teacherCollection.findOne({
+                    $or: [{ email }, { phone }],
+                });
+
+                if (existingTeacher) {
+                    return res.status(409).json({
+                        message:
+                            "Teacher already exists with this email or phone number",
+                    });
+                }
+
+                // Create Teacher Object
+                const newTeacher = {
+                    name,
+                    email,
+                    phone,
+                    dept,
+                    designation,
+                    active: false,
+                    createdAt: new Date(),
+                };
+
+                // Insert into MongoDB
+                await teacherCollection.insertOne(newTeacher);
+
+                // Send Response
+                res.status(201).json({
+                    message: "Teacher added successfully",
+                    teacher: {
+                        name,
+                        email,
+                        phone,
+                        dept,
+                        designation,
+                    },
                 });
             } catch (err) {
                 res.status(500).json({ error: err.message });
