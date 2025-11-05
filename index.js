@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const bcrypt = require("bcrypt");
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -421,6 +422,119 @@ async function run() {
                         phone,
                         dept,
                         designation,
+                    },
+                });
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+
+        app.post("/api/teacher/register", async (req, res) => {
+            try {
+                const { email, password } = req.body;
+
+                // 🔹 Validation
+                if (!email || !password) {
+                    return res
+                        .status(400)
+                        .json({ message: "Email and password are required" });
+                }
+
+                // 🔹 Find inactive teacher by email
+                const teacher = await teacherCollection.findOne({
+                    email,
+                    active: false,
+                });
+
+                if (!teacher) {
+                    return res.status(404).json({
+                        message: "Teacher not found or already registered",
+                    });
+                }
+
+                // 🔹 Encrypt password
+                const hashedPassword = await bcrypt.hash(password, 10);
+
+                // 🔹 Update existing record
+                await teacherCollection.updateOne(
+                    { email },
+                    { $set: { password: hashedPassword, active: true } }
+                );
+
+                // 🔹 Send success response
+                res.json({
+                    message:
+                        "Teacher account activated successfully please Login",
+                    teacher: {
+                        name: teacher.name,
+                        email: teacher.email,
+                        dept: teacher.dept,
+                        designation: teacher.designation,
+                        active: true,
+                    },
+                });
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+
+        app.post("/api/teacher/login", async (req, res) => {
+            try {
+                const { email, password } = req.body;
+
+                // 🔹 Validate input
+                if (!email || !password) {
+                    return res
+                        .status(400)
+                        .json({ message: "Email and password are required" });
+                }
+
+                // 🔹 Check if teacher exists
+                const teacher = await teacherCollection.findOne({ email });
+
+                if (!teacher) {
+                    return res
+                        .status(404)
+                        .json({ message: "Teacher not found" });
+                }
+
+                // 🔹 Check if active
+                if (!teacher.active) {
+                    return res.status(403).json({
+                        message:
+                            "Your account is not activated. Please set your password first.",
+                    });
+                }
+
+                // 🔹 Check if password field exists
+                if (!teacher.password) {
+                    return res.status(403).json({
+                        message:
+                            "Password not set. Please contact admin or set password.",
+                    });
+                }
+
+                // 🔹 Compare password using bcrypt
+                const isMatch = await bcrypt.compare(
+                    password,
+                    teacher.password
+                );
+                if (!isMatch) {
+                    return res
+                        .status(401)
+                        .json({ message: "Invalid email or password" });
+                }
+
+                // 🔹 Success Response (no JWT as per your preference)
+                res.json({
+                    message: "Login successful",
+                    teacher: {
+                        _id: teacher._id,
+                        name: teacher.name,
+                        email: teacher.email,
+                        phone: teacher.phone,
+                        dept: teacher.dept,
+                        designation: teacher.designation,
                     },
                 });
             } catch (err) {
